@@ -120,13 +120,66 @@ interface ServerKeyProviderInterface
 }
 ```
 
+### JsonSerializer（JSON 序列化器）
+
+实现 `SerializerInterface`，统一请求/响应的 JSON 编解码：
+
+```php
+use Wenbo\ReqResCrypto\Core\JsonSerializer;
+
+$serializer = new JsonSerializer();
+$json = $serializer->serialize(['key' => 'value']);       // → JSON 字符串
+$data = $serializer->unserialize('{"key":"value"}');       // → 关联数组
+```
+
+默认使用 `JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES` 编码，`unserialize` 前会 `json_validate` 校验。
+
+### ServerKey（服务端密钥值对象）
+
+`ServerKeyProviderInterface::getCurrentKey()` 的返回类型，封装一对服务端密钥：
+
+```php
+final readonly class ServerKey
+{
+    public string $keyId;             // 8 字符 hex
+    public string $signSecretKey;     // Ed25519 签名私钥（二进制）
+    public string $signPublicKey;     // Ed25519 签名公钥（二进制）
+    public string $exchangeSecretKey; // X25519 交换私钥（二进制）
+    public string $exchangePublicKey; // X25519 交换公钥（二进制）
+}
+```
+
+### PathMatcher（路径模式匹配）
+
+支持 `*`（单段）和 `**`（递归多段）通配符的路径匹配工具：
+
+```php
+use Wenbo\ReqResCrypto\Core\PathMatcher;
+
+PathMatcher::matches('/api/users/123', '/api/**');   // true
+PathMatcher::matches('/api/v2/list', '/api/*');      // true
+PathMatcher::matches('/api/v2/x/y', '/api/*');       // false（跨段）
+
+PathMatcher::matchesAny('/health', ['/api/**', '/health']); // true
+```
+
+框架适配包用此工具实现 `skip_routes` 配置。
+
 ### NonceStoreInterface（防重放）
 
 ```php
 interface NonceStoreInterface
 {
     public function exists(string $nonce): bool;
-    public function store(string $nonce, int $ttlSeconds): void;
+
+    /**
+     * 原子写入 nonce，返回是否首次存储。
+     * 高并发下必须用"不存在则写入"的原子操作（如 Cache::add、Redis SET NX），
+     * 避免 check-then-store 竞态导致重放攻击绕过。
+     *
+     * @return bool true = 首次存储成功，false = nonce 已存在（重复）
+     */
+    public function store(string $nonce, int $ttlSeconds): bool;
 }
 ```
 
@@ -140,7 +193,17 @@ interface NonceStoreInterface
 
 ## 密钥轮换
 
-参见框架适配包文档（Laravel / Hyperf），核心包仅定义 `ServerKeyProviderInterface`。
+核心包仅定义 `ServerKeyProviderInterface`，完整的密钥轮换（数据库持久化、定时 Crontab、Artisan 命令）由框架适配包提供：
+
+- [req-res-crypto-hyperf](https://github.com/wilbur-yu/req-res-crypto-hyperf) — Hyperf 适配
+- [req-res-crypto-laravel](https://github.com/wilbur-yu/req-res-crypto-laravel) — Laravel 适配
+
+## 框架适配
+
+| 框架 | 包 | 功能 |
+| --- | --- | --- |
+| Hyperf | [req-res-crypto-hyperf](https://github.com/wilbur-yu/req-res-crypto-hyperf) | PSR-15 中间件、数据库密钥轮换、Crontab、Artisan 命令 |
+| Laravel | [req-res-crypto-laravel](https://github.com/wilbur-yu/req-res-crypto-laravel) | 中间件、Facade、注解驱动加解密、数据库密钥轮换 |
 
 ## 前端对接
 
