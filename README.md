@@ -207,4 +207,8 @@ interface NonceStoreInterface
 
 ## 前端对接
 
-参见 `@wenbo/req-res-crypto-js` npm 包。客户端每次请求动态生成 X25519 密钥对（~0.05ms），公钥嵌入 wire，用完即弃。
+前端（浏览器）客户端 [req-res-crypto-js](https://github.com/wilbur-yu/req-res-crypto-js)，提供 axios / fetch 透明加解密集成。客户端每次请求动态生成 X25519 密钥对（~0.05ms），公钥嵌入 wire，用完即弃。
+
+```bash
+npm install @wenbo/req-res-crypto-js
+```
